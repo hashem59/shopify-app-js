@@ -92,3 +92,33 @@ Apply version-based classification from `../shared/references/version-maintenanc
 Write the report following the template in `references/investigation-report-template.md`. Ensure every referenced issue and PR uses full GitHub URLs.
 
 If a PR review is needed for a related PR, use the `reviewing-pull-requests` skill.
+
+## Automated Output (GitHub Actions)
+
+When running in a GitHub Actions context, after completing the investigation choose exactly **one** output path:
+
+### Path A — Fix it
+
+All of the following must be true:
+- The issue is a **valid bug** in the **latest maintained version**
+- You identified the root cause with high confidence from code reading
+- The fix is straightforward and low-risk (not a large refactor or architectural change)
+
+If so: implement the fix, then create a PR targeting `main` with title `fix: <short description> (fixes #<issue-number>)`.
+
+### Path B — Push the report
+
+For everything else (feature requests, older-version bugs, unclear reproduction, complex/risky fixes, insufficient info):
+
+1. Write the investigation report to `issue-investigation/<issue-number>.md` using the template in `references/investigation-report-template.md`.
+2. Push it to the `issue-investigation` branch without disturbing any existing reports:
+
+```bash
+git fetch origin issue-investigation 2>/dev/null || true
+git checkout issue-investigation 2>/dev/null || git checkout -b issue-investigation
+git pull --rebase origin issue-investigation 2>/dev/null || true
+# (write the report file here)
+git add issue-investigation/<issue-number>.md
+git commit -m "investigate: issue #<issue-number>"
+git push origin issue-investigation
+```

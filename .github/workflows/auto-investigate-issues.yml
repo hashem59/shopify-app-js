@@ -1,0 +1,62 @@
+name: Auto-investigate Issues
+on:
+  issues:
+    types: [opened]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to investigate'
+        required: true
+        type: number
+
+permissions:
+  issues: write
+  contents: write
+  pull-requests: write
+
+# Queue concurrent runs so the issue-investigation branch push never races
+concurrency:
+  group: issue-investigation-branch
+  cancel-in-progress: false
+
+jobs:
+  investigate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          # Use a PAT if you need to push branches or create PRs that trigger other workflows.
+          # GITHUB_TOKEN works for direct pushes but PRs created with it won't trigger CI.
+          # Replace with secrets.SHOPIFY_GH_ACCESS_TOKEN if available.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Resolve issue number
+        id: issue
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "number=${{ github.event.inputs.issue_number }}" >> "$GITHUB_OUTPUT"
+            echo "url=https://github.com/${{ github.repository }}/issues/${{ github.event.inputs.issue_number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
+            echo "url=${{ github.event.issue.html_url }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Follow the instructions in `.claude/skills/investigating-github-issues/SKILL.md` to
+            investigate GitHub issue #${{ steps.issue.outputs.number }}.
+
+            Issue URL: ${{ steps.issue.outputs.url }}
+
+            After completing the investigation, follow the "Automated Output" section at the
+            bottom of the SKILL.md to determine whether to open a fix PR or push the report
+            to the issue-investigation branch.
